@@ -173,12 +173,13 @@ def etapa_contratacoes(cli: ClientePncp, cache: Path, uf: str, data_final: str, 
 
 
 def etapa_itens(
-    cli: ClientePncp, cache: Path, contratacoes: list[dict], log, limite: int = 0
+    cli: ClientePncp, cache: Path, contratacoes: list[dict], log, limite: int = 0, inversa: bool = False
 ) -> tuple[dict[str, list[dict]], list[dict]]:
     pasta = cache / "itens"
     itens: dict[str, list[dict]] = {}
     falhas: list[dict] = []
-    ordenadas = sorted(contratacoes, key=lambda r: r["numeroControlePNCP"])
+    # inversa=True permite um segundo processo começar do fim (os dois se encontram no meio, pelo cache)
+    ordenadas = sorted(contratacoes, key=lambda r: r["numeroControlePNCP"], reverse=inversa)
     if limite:
         ordenadas = ordenadas[:limite]
     total = len(ordenadas)
@@ -886,6 +887,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     ap.add_argument("--intervalo", type=float, default=0.8, help="segundos mínimos entre requisições")
     ap.add_argument("--etapas", default="contratacoes,itens,contratos,csv")
     ap.add_argument("--limite-itens", type=int, default=0, help="só para teste: buscar itens de N contratações")
+    ap.add_argument("--itens-do-fim", action="store_true", help="percorre as contratações de trás para frente")
     args = ap.parse_args(list(argv) if argv is not None else None)
 
     referencia = date.fromisoformat(args.referencia)
@@ -911,7 +913,9 @@ def main(argv: Iterable[str] | None = None) -> int:
     falhas_itens: list[dict] = []
     if "itens" in etapas or "csv" in etapas:
         if "itens" in etapas:
-            itens, falhas_itens = etapa_itens(cli, args.cache, contratacoes, log, args.limite_itens)
+            itens, falhas_itens = etapa_itens(
+                cli, args.cache, contratacoes, log, args.limite_itens, inversa=args.itens_do_fim
+            )
         else:
             for c in contratacoes:
                 p = args.cache / "itens" / f"{c['orgaoEntidade']['cnpj']}_{c['anoCompra']}_{c['sequencialCompra']}.json"
