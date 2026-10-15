@@ -11,8 +11,11 @@ O que faz (pode rodar de novo sem duplicar nada):
   5. adiciona as issues do laboratório (marcador lab-id) com Status, Estimativa, Prazo e Sprint.
 
 O que NÃO dá para fazer pela API (faça na interface do projeto, em "Workflows"):
-  - "Auto-add to project" para os dois repositórios;
-  - "Item closed" e "Pull request merged" → Pronto (confira se apontam para "Pronto").
+  - "Auto-add to project" no radar-licitacoes, com o filtro `is:issue is:open`. O plano Free permite
+    só 1 auto-add, e cada um vigia um repositório. As issues do laboratorio entram rodando este
+    script de novo depois de publicar a sprint, porque ele só adiciona e preenche o que falta;
+  - "Pull request linked to issue" → Em revisão (o padrão do GitHub é "Em desenvolvimento");
+  - confira se "Item closed" e "Pull request merged" apontam para "Pronto".
 """
 
 from __future__ import annotations
@@ -20,7 +23,8 @@ from __future__ import annotations
 import json
 import re
 import subprocess
-from datetime import date
+import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 import yaml
@@ -56,9 +60,13 @@ def literal(valor: object) -> str:
 
 
 def gh(*args: str, entrada: str | None = None) -> str:
-    return subprocess.run(
-        ["gh", *args], check=True, capture_output=True, text=True, encoding="utf-8", input=entrada
-    ).stdout
+    feito = subprocess.run(["gh", *args], capture_output=True, text=True, encoding="utf-8", input=entrada)
+    if feito.returncode != 0:
+        mensagem = (feito.stderr or feito.stdout).strip()
+        if "scope" in mensagem.lower():
+            mensagem += "\n  dica: rode `gh auth refresh -s project,admin:org` e tente de novo"
+        raise RuntimeError(f"gh {' '.join(args[:3])} falhou: {mensagem}")
+    return feito.stdout
 
 
 def graphql(consulta: str) -> dict:
@@ -69,7 +77,8 @@ def graphql(consulta: str) -> dict:
 
 
 def projeto() -> tuple[int, str]:
-    existentes = json.loads(gh("project", "list", "--owner", ORG, "--format", "json", "--limit", "100"))
+    # --closed inclui projetos fechados: sem isso, um quadro fechado sumiria e outro seria criado
+    existentes = json.loads(gh("project", "list", "--owner", ORG, "--format", "json", "--limit", "100", "--closed"))
     for p in existentes.get("projects", []):
         if p["title"] == TITULO:
             return p["number"], p["id"]
@@ -83,28 +92,23 @@ def campos(numero: int) -> dict[str, dict]:
 
 
 def configurar_status(campo: dict) -> None:
+    """Troca as opções do Status mantendo o id das que já existem.
+
+    Sem o id, o GitHub recria a opção: o Status dos cards é apagado e os workflows perdem o alvo.
+    Por isso não há "plano B" sem ids: se a chamada falhar, o erro sobe.
+    """
     atuais = {o["name"]: o["id"] for o in campo.get("options", [])}
-
-    def opcoes(com_id: bool) -> list[dict]:
-        lista = []
-        for nome, cor, descricao, antigo in STATUS:
-            opcao: dict = {"name": nome, "color": Enum(cor), "description": descricao}
-            existente = atuais.get(nome) or (atuais.get(antigo) if antigo else None)
-            if com_id and existente:
-                opcao["id"] = existente
-            lista.append(opcao)
-        return lista
-
-    for com_id in (True, False):  # manter os ids preserva os workflows; se a API recusar, recria as opções
-        try:
-            graphql(
-                f"""mutation {{ updateProjectV2Field(input: {{fieldId: {literal(campo["id"])},
-                    singleSelectOptions: {literal(opcoes(com_id))}}}) {{ projectV2Field {{ __typename }} }} }}"""
-            )
-            return
-        except (RuntimeError, subprocess.CalledProcessError):
-            if not com_id:
-                raise
+    opcoes = []
+    for nome, cor, descricao, antigo in STATUS:
+        opcao: dict = {"name": nome, "color": Enum(cor), "description": descricao}
+        existente = atuais.get(nome) or (atuais.get(antigo) if antigo else None)
+        if existente:
+            opcao["id"] = existente
+        opcoes.append(opcao)
+    graphql(
+        f"""mutation {{ updateProjectV2Field(input: {{fieldId: {literal(campo["id"])},
+            singleSelectOptions: {literal(opcoes)}}}) {{ projectV2Field {{ __typename }} }} }}"""
+    )
 
 
 def criar_campos(numero: int, id_projeto: str, roadmap: dict) -> None:
@@ -115,12 +119,14 @@ def criar_campos(numero: int, id_projeto: str, roadmap: dict) -> None:
     if "Prazo" not in existentes:
         gh("project", "field-create", str(numero), "--owner", ORG, "--name", "Prazo", "--data-type", "DATE")
     if "Sprint" not in existentes:
+        # Cada sprint ocupa a semana inteira (segunda a domingo), mesmo começando depois de um feriado:
+        # assim não sobra dia sem iteração. Só o recesso fica de fora, de propósito.
         iteracoes = [
-            {"startDate": s["inicio"].isoformat(), "duration": (s["fim"] - s["inicio"]).days + 3,
+            {"startDate": (s["inicio"] - timedelta(days=s["inicio"].weekday())).isoformat(), "duration": 7,
              "title": f"Sprint {s['sprint']:02d}"}
             for s in roadmap["semanas"] if "sprint" in s
         ]
-        configuracao = {"startDate": roadmap["laboratorio"]["inicio"].isoformat(), "duration": 7, "iterations": iteracoes}
+        configuracao = {"startDate": iteracoes[0]["startDate"], "duration": 7, "iterations": iteracoes}
         graphql(
             f"""mutation {{ createProjectV2Field(input: {{projectId: {literal(id_projeto)}, dataType: ITERATION,
                 name: "Sprint", iterationConfiguration: {literal(configuracao)}}}) {{ projectV2Field {{ __typename }} }} }}"""
@@ -136,12 +142,28 @@ def iteracoes_do_campo(id_campo: str) -> dict[str, str]:
     return {i["title"]: i["id"] for i in configuracao["iterations"] + configuracao["completedIterations"]}
 
 
-def adicionar_issues(numero: int, id_projeto: str) -> int:
+def valores_do_item(id_item: str) -> dict[str, str | None]:
+    """Valores atuais de Status, Estimativa, Prazo e Sprint de um card (None = vazio)."""
+    consulta = " ".join(
+        f'{apelido}: fieldValueByName(name: "{nome}") {{ ... on ProjectV2ItemFieldSingleSelectValue {{ name }} '
+        f"... on ProjectV2ItemFieldDateValue {{ date }} ... on ProjectV2ItemFieldIterationValue {{ title }} }}"
+        for apelido, nome in (("status", "Status"), ("estimativa", "Estimativa"), ("prazo", "Prazo"), ("sprint", "Sprint"))
+    )
+    no = graphql(f"query {{ node(id: {literal(id_item)}) {{ ... on ProjectV2Item {{ {consulta} }} }} }}")["node"]
+    return {k: next(iter((no.get(k) or {}).values()), None) for k in ("status", "estimativa", "prazo", "sprint")}
+
+
+def adicionar_issues(numero: int, id_projeto: str) -> tuple[int, int]:
+    """Coloca as issues do laboratório no quadro e preenche SÓ os campos vazios.
+
+    Rodar de novo não desfaz o andamento: um card já em "Em revisão" continua lá, e um prazo
+    ajustado à mão no quadro não volta para o do rodapé da issue.
+    """
     todos = campos(numero)
     backlog = next(o["id"] for o in todos["Status"]["options"] if o["name"] == "Backlog")
     estimativas = {o["name"]: o["id"] for o in todos["Estimativa"]["options"]}
     sprints = iteracoes_do_campo(todos["Sprint"]["id"])
-    adicionadas = 0
+    total = preenchidos = 0
     for repo in REPOS:
         issues = json.loads(gh("issue", "list", "-R", f"{ORG}/{repo}", "--state", "all", "--limit", "500",
                                "--json", "url,body"))
@@ -151,21 +173,37 @@ def adicionar_issues(numero: int, id_projeto: str) -> int:
                 continue
             item = json.loads(gh("project", "item-add", str(numero), "--owner", ORG, "--url", issue["url"],
                                  "--format", "json"))["id"]
+            atuais = valores_do_item(item)
             base = ["project", "item-edit", "--id", item, "--project-id", id_projeto]
-            gh(*base, "--field-id", todos["Status"]["id"], "--single-select-option-id", backlog)
+            mudou = False
+            if not atuais["status"]:
+                gh(*base, "--field-id", todos["Status"]["id"], "--single-select-option-id", backlog)
+                mudou = True
             rodape = RE_RODAPE.search(corpo)
-            if rodape:
+            if not rodape:
+                print(f"  aviso: {issue['url']} sem rodapé Estimativa/Prazo/Sprint; só o Status foi tratado")
+            else:
                 estimativa, dia, mes, ano, sprint = rodape.groups()
-                gh(*base, "--field-id", todos["Estimativa"]["id"], "--single-select-option-id", estimativas[estimativa])
-                gh(*base, "--field-id", todos["Prazo"]["id"], "--date", date(int(ano), int(mes), int(dia)).isoformat())
+                if not atuais["estimativa"]:
+                    gh(*base, "--field-id", todos["Estimativa"]["id"], "--single-select-option-id", estimativas[estimativa])
+                    mudou = True
+                if not atuais["prazo"]:
+                    gh(*base, "--field-id", todos["Prazo"]["id"], "--date", date(int(ano), int(mes), int(dia)).isoformat())
+                    mudou = True
                 titulo = f"Sprint {int(sprint):02d}"
-                if titulo in sprints:
-                    gh(*base, "--field-id", todos["Sprint"]["id"], "--iteration-id", sprints[titulo])
-            adicionadas += 1
-    return adicionadas
+                if not atuais["sprint"]:
+                    if titulo in sprints:
+                        gh(*base, "--field-id", todos["Sprint"]["id"], "--iteration-id", sprints[titulo])
+                        mudou = True
+                    else:
+                        print(f"  aviso: {issue['url']}: a iteração '{titulo}' não existe no campo Sprint")
+            total += 1
+            preenchidos += mudou
+    return total, preenchidos
 
 
 def main() -> None:
+    sys.stdout.reconfigure(encoding="utf-8")  # "→" não existe em cp1252 (saída redirecionada no Windows)
     roadmap = yaml.safe_load((Path(__file__).resolve().parents[1] / "roadmap.yml").read_text(encoding="utf-8"))
     numero, id_projeto = projeto()
     print(f"Projeto #{numero}: {TITULO}")
@@ -175,9 +213,13 @@ def main() -> None:
     print("Campos: Estimativa, Prazo e Sprint")
     for repo in REPOS:
         gh("project", "link", str(numero), "--owner", ORG, "--repo", f"{ORG}/{repo}")
-    print(f"Issues no quadro: {adicionar_issues(numero, id_projeto)}")
+    total, preenchidos = adicionar_issues(numero, id_projeto)
+    print(f"Issues no quadro: {total} ({preenchidos} com campos preenchidos agora; o resto já estava completo)")
+    print("A listagem do quadro pode levar alguns minutos para mostrar todos os cards (indexação do GitHub).")
+    print("Depois de publicar uma sprint, rode de novo para pôr as issues novas do laboratorio no quadro.")
     print(f"\nColoque LAB_PROJETO_NUMERO={numero} em gestao/.env.")
-    print("Na interface do projeto (Workflows): Auto-add (2 repositórios), Item closed → Pronto, PR merged → Pronto.")
+    print("Na interface do projeto (Workflows): Auto-add só no radar-licitacoes (plano Free: 1 auto-add),")
+    print("'Pull request linked to issue' → Em revisão; confira 'Item closed' e 'Pull request merged' → Pronto.")
 
 
 if __name__ == "__main__":
