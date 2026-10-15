@@ -7,7 +7,13 @@ from collections import Counter
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from laboratorio_mcp.calendario import carregar_roadmap, dias_uteis, sprint_por_numero, titulo_milestone
+from laboratorio_mcp.calendario import (
+    carregar_roadmap,
+    dias_uteis,
+    semana_em,
+    sprint_por_numero,
+    titulo_milestone,
+)
 from laboratorio_mcp.config import Config
 from laboratorio_mcp.github import ErroGitHub, GitHub
 from laboratorio_mcp.publicacao import mapa_existentes
@@ -106,7 +112,15 @@ def dailies(gh: GitHub, cfg: Config, dias: int, hoje: date) -> dict[str, Any]:
     estagiaria = _quem_e_a_estagiaria(cfg, comentarios)
     dela = [c for c in comentarios if c["user"]["login"] == estagiaria]
     dias_com_daily = {_data_local(c["created_at"]) for c in dela}
-    esperados = [d for d in dias_uteis(desde, hoje - timedelta(days=1))]
+    # Só cobra daily em dia útil de sprint (nem antes do início, nem no recesso) e com a estagiária identificada
+    roadmap = carregar_roadmap(cfg.diretorio_lab)
+    esperados = [
+        d
+        for d in dias_uteis(max(desde, roadmap["laboratorio"]["inicio"]), hoje - timedelta(days=1))
+        if (semana := semana_em(roadmap, d)) is not None and not semana.get("recesso")
+    ]
+    if estagiaria is None:
+        esperados = []
     bloqueios = []
     for c in dela:
         for linha in (c.get("body") or "").splitlines():
