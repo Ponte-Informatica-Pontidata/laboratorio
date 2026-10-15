@@ -36,6 +36,18 @@ def test_dailies_aponta_dia_util_sem_daily(gh, cfg):
     assert resultado["bloqueios_relatados"][0]["texto"].endswith("Docker não sobe no Windows")
 
 
+def test_dailies_nao_cobra_antes_do_inicio_nem_no_recesso(gh, cfg):
+    numero = publicacao.garantir_daily(gh, cfg, executar_agora=True)["numero"]
+    # Antes do laboratório começar (e sem estagiária identificada): nada a cobrar
+    assert analises.dailies(gh, cfg, dias=7, hoje=date(2026, 10, 15))["dias_uteis_sem_daily"] == []
+    # No recesso de fim de ano também não, mesmo com a estagiária identificada
+    gh._comentarios[("laboratorio", numero)] = [
+        {"user": {"login": "estagiaria"}, "created_at": "2026-12-18T13:00:00Z", "body": "**Fiz:** v0.1"}
+    ]
+    resultado = analises.dailies(gh, cfg, dias=10, hoje=date(2026, 12, 28))
+    assert resultado["dias_uteis_sem_daily"] == []
+
+
 def test_prs_em_revisao_checa_o_template(gh, cfg):
     gh._pulls["radar-licitacoes"] = [
         {
