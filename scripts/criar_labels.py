@@ -16,7 +16,7 @@ ORG = "Ponte-Informatica-Pontidata"
 REPOS = ["laboratorio", "radar-licitacoes"]
 PADRAO_GITHUB = [
     "bug", "documentation", "duplicate", "enhancement", "good first issue",
-    "help wanted", "invalid", "question", "wontfix",
+    "help wanted", "invalid", "question", "wontfix", "accessibility",
 ]
 
 
