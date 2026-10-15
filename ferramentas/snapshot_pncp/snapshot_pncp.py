@@ -641,6 +641,16 @@ def montar_tabelas(contratacoes, itens_por_compra, contratos, anon: Anonimizador
             qualidade["contratos_sem_fornecedor"] += 1
         linhas_contrato.append((r, forn, sub))
 
+    # A mesma pessoa pode aparecer como PF (CPF) e como MEI (CNPJ com o nome dela na razão social).
+    # Com todos os nomes de PF já coletados, mascara esses nomes também nas razões sociais de PJ.
+    for f in fornecedores.values():
+        if f["tipo_pessoa"] == "PJ" and f["razao_social"]:
+            mascarada = anon.mascarar_nomes(f["razao_social"])
+            if mascarada != f["razao_social"]:
+                f["razao_social"] = mascarada
+                f["possivel_mei"] = "true"
+                anon.contagem["razoes_sociais_com_nome_de_pf_mascaradas"] += 1
+
     contratacao_rows = []
     divergencias_uf = 0
     for r in sorted(contratacoes, key=lambda x: x["numeroControlePNCP"]):
