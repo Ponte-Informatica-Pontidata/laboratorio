@@ -1,0 +1,61 @@
+name: Tarefa de sprint
+description: Uma tarefa do laboratório (dados, IA, dev, docs, infra, LGPD, estudo)
+title: "[tipo] descrição curta"
+body:
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto
+      description: Por que esta tarefa existe? Que problema real ela resolve?
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: O que fazer
+      description: Passos, em ordem.
+      value: |
+        1.
+        2.
+    validations:
+      required: true
+  - type: textarea
+    id: aceite
+    attributes:
+      label: Critérios de aceite
+      description: Checklist objetivo. A tarefa só está pronta quando tudo estiver marcado.
+      value: |
+        - [ ]
+        - [ ] CI verde no PR
+    validations:
+      required: true
+  - type: input
+    id: faculdade
+    attributes:
+      label: Conteúdo da faculdade praticado
+      placeholder: "ex.: modelagem relacional, SQL (JOIN, GROUP BY), estatística descritiva"
+  - type: textarea
+    id: arquivos
+    attributes:
+      label: Arquivos e TODOs relacionados
+      placeholder: "ex.: src/radar/tratamento/limpeza.py (TODO(estagiaria)), tests/unit/test_limpeza.py"
+  - type: dropdown
+    id: estimativa
+    attributes:
+      label: Estimativa
+      options:
+        - P (até 2 h)
+        - M (3 a 5 h)
+        - G (6 a 8 h)
+    validations:
+      required: true
+  - type: input
+    id: prazo
+    attributes:
+      label: Prazo
+      placeholder: dd/mm/aaaa
+  - type: textarea
+    id: dica
+    attributes:
+      label: Dica de por onde começar
+      description: Um caminho, não a resposta.

@@ -1,0 +1,29 @@
+# Gestão do laboratório no Docker local do tech lead.
+# Os dois serviços são servidores MCP via stdio: o Claude Code os inicia sob demanda
+# (veja ../.mcp.json). Não é preciso deixar nada rodando.
+#
+#   Teste manual:  docker compose -f gestao/docker-compose.yml run --rm -T mcp-laboratorio
+#   Rebuild:       docker compose -f gestao/docker-compose.yml build
+name: laboratorio-gestao
+
+services:
+  # MCP oficial do GitHub: issues, PRs, comentários, Projects, Actions
+  github-mcp:
+    image: ghcr.io/github/github-mcp-server:v2.0.2
+    stdin_open: true
+    env_file:
+      - .env
+    environment:
+      GITHUB_TOOLSETS: context,repos,issues,pull_requests,projects,actions,labels,orgs
+
+  # MCP do laboratório: calendário, status da sprint, dailies, PRs, métricas, publicação e rubrica
+  mcp-laboratorio:
+    build: ./mcp-laboratorio
+    image: laboratorio-mcp:local
+    stdin_open: true
+    env_file:
+      - .env
+    environment:
+      LAB_DIR: /lab
+    volumes:
+      - ..:/lab:ro

@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mcp:
+    name: MCP do laboratório (lint + testes + planejamento)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: gestao/mcp-laboratorio
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      # Os testes também validam roadmap.yml e sprints/*.md (front-matter, prazos, seções obrigatórias)
+      - run: uv run pytest
+
+  scripts:
+    name: Lint dos scripts e ferramentas
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - run: uvx ruff@0.17.0 check scripts ferramentas --line-length 120 --select E,F,W,I,B --ignore E501
+
+  segredos:
+    name: Nenhum segredo no repositório (gitleaks)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose

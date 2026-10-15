@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: "Produto: Radar de Licitações"
+    url: https://github.com/Ponte-Informatica-Pontidata/radar-licitacoes
+    about: Issues de código do Radar ficam no repositório radar-licitacoes.

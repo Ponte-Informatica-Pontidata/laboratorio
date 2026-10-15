@@ -1,0 +1,11 @@
+[
+  {"nome": "dados", "cor": "0e8a16", "descricao": "Modelagem, ingestão, limpeza, consultas e análise de dados"},
+  {"nome": "ia", "cor": "5319e7", "descricao": "Embeddings, LLMs, prompts e avaliação de modelos"},
+  {"nome": "dev", "cor": "1d76db", "descricao": "Desenvolvimento de software (Python, app, CLI)"},
+  {"nome": "docs", "cor": "c5def5", "descricao": "Documentação"},
+  {"nome": "infra", "cor": "fbca04", "descricao": "Ambiente, Docker, CI/CD e deploy"},
+  {"nome": "lgpd", "cor": "b60205", "descricao": "Proteção de dados pessoais"},
+  {"nome": "estudo", "cor": "bfd4f2", "descricao": "Leitura e aprendizado guiado"},
+  {"nome": "sem-ia", "cor": "d93f0b", "descricao": "Fazer SEM IA: treina fundamentos"},
+  {"nome": "desafio", "cor": "f9d0c4", "descricao": "Desafio extra opcional"}
+]

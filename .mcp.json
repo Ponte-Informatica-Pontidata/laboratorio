@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "laboratorio": {
+      "command": "docker",
+      "args": ["compose", "-f", "gestao/docker-compose.yml", "run", "--rm", "-T", "mcp-laboratorio"]
+    },
+    "github": {
+      "command": "docker",
+      "args": ["compose", "-f", "gestao/docker-compose.yml", "run", "--rm", "-T", "github-mcp"]
+    }
+  }
+}

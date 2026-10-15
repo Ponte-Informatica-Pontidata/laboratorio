@@ -1,0 +1,22 @@
+# Segredos: nunca versionar
+.env
+.env.*
+!.env.example
+gestao/.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Cache da extração do PNCP (fica fora do repositório, mas por garantia)
+.cache/
+
+# Editores e sistema
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db

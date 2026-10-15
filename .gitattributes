@@ -1,0 +1,5 @@
+# LF em tudo: os scripts rodam em containers Linux mesmo quando o repositório é clonado no Windows.
+* text=auto eol=lf
+*.csv text eol=lf
+*.png binary
+*.jpg binary
