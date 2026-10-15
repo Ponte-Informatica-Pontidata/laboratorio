@@ -173,13 +173,19 @@ def etapa_contratacoes(cli: ClientePncp, cache: Path, uf: str, data_final: str, 
 
 
 def etapa_itens(
-    cli: ClientePncp, cache: Path, contratacoes: list[dict], log, limite: int = 0, inversa: bool = False
+    cli: ClientePncp,
+    cache: Path,
+    contratacoes: list[dict],
+    log,
+    limite: int = 0,
+    inversa: bool = False,
+    pular: int = 0,
 ) -> tuple[dict[str, list[dict]], list[dict]]:
     pasta = cache / "itens"
     itens: dict[str, list[dict]] = {}
     falhas: list[dict] = []
     # inversa=True permite um segundo processo começar do fim (os dois se encontram no meio, pelo cache)
-    ordenadas = sorted(contratacoes, key=lambda r: r["numeroControlePNCP"], reverse=inversa)
+    ordenadas = sorted(contratacoes, key=lambda r: r["numeroControlePNCP"], reverse=inversa)[pular:]
     if limite:
         ordenadas = ordenadas[:limite]
     total = len(ordenadas)
@@ -888,6 +894,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     ap.add_argument("--etapas", default="contratacoes,itens,contratos,csv")
     ap.add_argument("--limite-itens", type=int, default=0, help="só para teste: buscar itens de N contratações")
     ap.add_argument("--itens-do-fim", action="store_true", help="percorre as contratações de trás para frente")
+    ap.add_argument("--itens-pular", type=int, default=0, help="começa depois das N primeiras (para dividir entre processos)")
     args = ap.parse_args(list(argv) if argv is not None else None)
 
     referencia = date.fromisoformat(args.referencia)
@@ -914,7 +921,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     if "itens" in etapas or "csv" in etapas:
         if "itens" in etapas:
             itens, falhas_itens = etapa_itens(
-                cli, args.cache, contratacoes, log, args.limite_itens, inversa=args.itens_do_fim
+                cli, args.cache, contratacoes, log, args.limite_itens, inversa=args.itens_do_fim, pular=args.itens_pular
             )
         else:
             for c in contratacoes:
