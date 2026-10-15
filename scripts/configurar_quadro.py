@@ -11,8 +11,11 @@ O que faz (pode rodar de novo sem duplicar nada):
   5. adiciona as issues do laboratório (marcador lab-id) com Status, Estimativa, Prazo e Sprint.
 
 O que NÃO dá para fazer pela API (faça na interface do projeto, em "Workflows"):
-  - "Auto-add to project" para os dois repositórios;
-  - "Item closed" e "Pull request merged" → Pronto (confira se apontam para "Pronto").
+  - "Auto-add to project" no radar-licitacoes, com o filtro `is:issue is:open`. O plano Free permite
+    só 1 auto-add, e cada um vigia um repositório. As issues do laboratorio entram rodando este
+    script de novo depois de publicar a sprint, porque ele só adiciona e preenche o que falta;
+  - "Pull request linked to issue" → Em revisão (o padrão do GitHub é "Em desenvolvimento");
+  - confira se "Item closed" e "Pull request merged" apontam para "Pronto".
 """
 
 from __future__ import annotations
@@ -213,8 +216,10 @@ def main() -> None:
     total, preenchidos = adicionar_issues(numero, id_projeto)
     print(f"Issues no quadro: {total} ({preenchidos} com campos preenchidos agora; o resto já estava completo)")
     print("A listagem do quadro pode levar alguns minutos para mostrar todos os cards (indexação do GitHub).")
+    print("Depois de publicar uma sprint, rode de novo para pôr as issues novas do laboratorio no quadro.")
     print(f"\nColoque LAB_PROJETO_NUMERO={numero} em gestao/.env.")
-    print("Na interface do projeto (Workflows): Auto-add (2 repositórios), Item closed → Pronto, PR merged → Pronto.")
+    print("Na interface do projeto (Workflows): Auto-add só no radar-licitacoes (plano Free: 1 auto-add),")
+    print("'Pull request linked to issue' → Em revisão; confira 'Item closed' e 'Pull request merged' → Pronto.")
 
 
 if __name__ == "__main__":
