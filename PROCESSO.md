@@ -27,8 +27,11 @@ Um Scrum enxuto, assíncrono e 100% no GitHub, ajustado a uma estagiária com at
 
 - No máximo **1 issue em "Em desenvolvimento"** por vez (foco termina tarefas).
 - Abriu o PR, a issue vai para **Em revisão**.
+- Issue entregue por comentário, sem PR (como a maioria da Sprint 0): postou a entrega, a issue vai para
+  **Em revisão**. O tech lead confere os critérios de aceite e fecha a issue, que vai para **Pronto**.
 - Travou por mais de 1 hora sem avançar: **Bloqueado** e avise na daily o que já tentou.
-- **Pronto** = PR mergeado + critérios de aceite marcados.
+- **Pronto** = PR mergeado (ou entrega conferida pelo tech lead) + critérios de aceite marcados.
+- As automações do quadro podem mover o card sozinhas: depois de cada passo, confira; se não mudou, mova à mão.
 
 ## Definition of Ready (a issue está pronta para começar quando…)
 
